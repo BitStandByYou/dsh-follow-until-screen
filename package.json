@@ -1,8 +1,9 @@
 {
   "name": "dsh-follow-until-screen",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Stop tail-following once a streamed reply fills one screen.",
+  "license": "MIT",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -15,6 +16,12 @@
   "homepage": "https://github.com/BitStandByYou/dsh-follow-until-screen#readme",
   "bugs": {
     "url": "https://github.com/BitStandByYou/dsh-follow-until-screen/issues"
+  },
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  },
+  "engines": {
+    "dsh": ">=0.2.2-rc.1 <0.3.0"
   },
   "exports": {
     ".": "./index.js",

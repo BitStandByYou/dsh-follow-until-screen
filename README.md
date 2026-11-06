@@ -38,10 +38,10 @@ DSH 默认会自动滚到底部：回答在屏幕上出现或变长时，页面�
 打开 DSH 的「插件」页，点「添加插件」，在输入框里粘贴下面这行地址并确认安装：
 
 ```text
-git+https://github.com/BitStandByYou/dsh-follow-until-screen.git#v0.1.0
+git+https://github.com/BitStandByYou/dsh-follow-until-screen.git#v0.1.1
 ```
 
-末尾的 `#v0.1.0` 是固定版本标签。想跟进最新提交可以改成 `#main`，
+末尾的 `#v0.1.1` 是固定版本标签。想跟进最新提交可以改成 `#main`，
 但上游改动可能带来兼容风险。
 
 安装完成后：
@@ -53,7 +53,7 @@ git+https://github.com/BitStandByYou/dsh-follow-until-screen.git#v0.1.0
 ### 用命令行安装
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/BitStandByYou/dsh-follow-until-screen.git#v0.1.0"
+dsh plugin --profile desktop add "git+https://github.com/BitStandByYou/dsh-follow-until-screen.git#v0.1.1"
 ```
 
 DSH Web 版把 `--profile desktop` 换成 `--profile web`。装完同样要刷新界面。
@@ -69,3 +69,7 @@ DSH Web 版把 `--profile desktop` 换成 `--profile web`。装完同样要刷�
 2. 在「插件」页点「添加插件」，输入仓库根目录的**绝对路径**
    （即包含 `package.json` 的这一层）。
 3. 启用 `dsh-follow-until-screen`，刷新 Web 界面。
+
+## 许可证
+
+[MIT](LICENSE)
