@@ -1,0 +1,41 @@
+{
+  "name": "dsh-follow-until-screen",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Stop tail-following once a streamed reply fills one screen.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BitStandByYou/dsh-follow-until-screen.git"
+  },
+  "homepage": "https://github.com/BitStandByYou/dsh-follow-until-screen#readme",
+  "bugs": {
+    "url": "https://github.com/BitStandByYou/dsh-follow-until-screen/issues"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
+    }
+  }
+}

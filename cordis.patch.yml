@@ -1,0 +1,5 @@
+# One client-side row: it releases conversation tail-following when the
+# current turn's final answer has filled one screen.
+- insert:
+    - id: follow-until-screen
+      name: dsh-follow-until-screen
