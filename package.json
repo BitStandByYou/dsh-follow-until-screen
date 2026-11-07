@@ -33,7 +33,8 @@
     "client.js",
     "cordis.patch.yml",
     "locale/*.json",
-    "README.md"
+    "README.md",
+    "README.en.md"
   ],
   "dsh": {
     "bundle": {
