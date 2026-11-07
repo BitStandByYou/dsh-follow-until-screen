@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Stop at one screen",
-    "description": "Stops auto-following once a reply fills one screen, keeping the reply readable from its first line."
+    "description": "Stops auto-following once a reply fills one screen, keeping the reply readable from its first line. Returning to a session also lands on the first screen of the reply."
   }
 }

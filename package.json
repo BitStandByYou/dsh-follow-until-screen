@@ -1,6 +1,6 @@
 {
   "name": "dsh-follow-until-screen",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "description": "Stop tail-following once a streamed reply fills one screen.",
   "license": "MIT",

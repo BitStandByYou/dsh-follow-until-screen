@@ -20,6 +20,9 @@ class FakeElement {
     this.parent = null
     this.hidden = false
     this.rect = { top: 0, height: 0 }
+    this.scrollTop = 0
+    this.scrollHeight = 0
+    this.clientHeight = 0
     this.events = []
   }
 
@@ -83,7 +86,22 @@ class FakeElement {
   querySelector(selector) {
     return this.querySelectorAll(selector)[0] ?? null
   }
+
+  closest(selector) {
+    let node = this
+    while (node !== null) {
+      if (node.matches(selector)) return node
+      node = node.parent
+    }
+    return null
+  }
 }
+
+// --- clock -----------------------------------------------------------------
+// Frame time advances by hand so the growth window is deterministic and a
+// first visit can be placed safely after page-load grace.
+let clock = 0
+globalThis.performance = { now: () => clock }
 
 // --- scheduler -------------------------------------------------------------
 let nextId = 1
@@ -117,10 +135,29 @@ globalThis.window = {
 
 // --- DOM -------------------------------------------------------------------
 const documentRoot = new FakeElement()
+const documentListeners = new Map()
 
 globalThis.document = {
   querySelector: (selector) => documentRoot.querySelector(selector),
   querySelectorAll: (selector) => documentRoot.querySelectorAll(selector),
+  addEventListener(type, listener) {
+    const listeners = documentListeners.get(type) ?? []
+    listeners.push(listener)
+    documentListeners.set(type, listeners)
+  },
+  removeEventListener(type, listener) {
+    const listeners = documentListeners.get(type)
+    if (listeners === undefined) return
+    const index = listeners.indexOf(listener)
+    if (index !== -1) listeners.splice(index, 1)
+  },
+}
+
+/** Deliver a reader intent the way a real wheel event reaches the page. */
+function readerIntent(target) {
+  for (const listener of documentListeners.get('wheel') ?? []) {
+    listener({ type: 'wheel', isTrusted: true, target })
+  }
 }
 
 globalThis.WheelEvent = class WheelEvent {
@@ -131,12 +168,15 @@ globalThis.WheelEvent = class WheelEvent {
   }
 }
 
-function mountConversation() {
-  const port = documentRoot.append(new FakeElement({ 'data-conversation-scroll': '' }))
+function mountConversation(parent = documentRoot, sessionId = 'session-main') {
+  const root = parent.append(new FakeElement({ 'data-conversation-session': sessionId }))
+  const port = root.append(new FakeElement({ 'data-conversation-scroll': '' }))
   port.rect = { top: 0, height: 800 }
   port.scrollTop = 1000
+  port.scrollHeight = 1800
+  port.clientHeight = 800
   const flow = port.append(new FakeElement({ 'data-chat-flow': '' }))
-  return { port, flow }
+  return { root, port, flow }
 }
 
 function addUserRow(flow, turn) {
@@ -174,6 +214,7 @@ function flushFrame() {
   const entry = frameQueue.entries().next().value
   if (entry === undefined) return false
   frameQueue.delete(entry[0])
+  clock += 16
   entry[1]()
   return true
 }
@@ -184,6 +225,17 @@ function flushTimers() {
     timerQueue.delete(entry[0])
     entry[1]()
   }
+}
+
+/** Run the next scheduled frame, or the idle poll when the follower went quiet. */
+function flushTick() {
+  if (flushFrame()) return true
+  const entry = timerQueue.entries().next().value
+  if (entry === undefined) return false
+  timerQueue.delete(entry[0])
+  clock += 16
+  entry[1]()
+  return true
 }
 
 await import(pathToFileURL(clientPath).href)
@@ -285,6 +337,101 @@ for (const top of [300, 100, 20]) {
 }
 assert.equal(port.events.length, 4, 'the wheel is dispatched when the Harness follows')
 assert.equal(port.scrollTop, 968, 'the Harness is nudged out of its follow band by real displacement')
+
+// --- returning to a Session that was left while tail-following --------------
+// Move past the page-load grace so a freshly tracked row only counts as active
+// when the turn is running or its height actually changed.
+clock = 20000
+
+function mountReturned(sessionId, answerTop, height = 3000) {
+  const mounted = mountConversation(documentRoot, sessionId)
+  const { port, flow: answerFlow } = mounted
+  port.scrollHeight = 3000
+  port.clientHeight = 800
+  port.scrollTop = 2200
+  port.append(new FakeElement({ 'data-chat-following-tail': '' }))
+  addUserRow(answerFlow, 1)
+  const answer = addResponseRow(answerFlow, 1, answerTop, height)
+  return { ...mounted, answer }
+}
+
+function leave(container) {
+  documentRoot.remove(container.root)
+}
+
+// Finish with the first conversation so only the return scenarios remain.
+leave({ root: port.closest('[data-conversation-session]') })
+
+// A Session opened for the first time in this page lifetime keeps the floor;
+// only a real return re-applies the one-screen rule.
+const firstVisit = mountReturned('session-returned', -1600)
+flushTick()
+assert.equal(firstVisit.port.events.length, 0, 'a first visit keeps the Harness floor')
+assert.equal(firstVisit.port.scrollTop, 2200, 'a first visit is not repositioned')
+leave(firstVisit)
+
+const returned = mountReturned('session-returned', -1600)
+flushTick()
+assert.equal(returned.port.events.length, 1, 'returning to a followed Session releases the floor pin')
+assert.equal(returned.port.events[0].type, 'wheel')
+assert.ok(returned.port.events[0].deltaY < 0)
+assert.equal(returned.port.scrollTop, 2200 - 1600 - 24, 'the answer first line lands at the top edge')
+
+// The Harness may land on the floor again before its sampling releases follow.
+returned.answer.rect.top = -1600
+returned.port.scrollTop = 2200
+flushTick()
+assert.equal(returned.port.events.length, 2, 'a repaired floor is released again')
+assert.equal(returned.port.scrollTop, 2200 - 1600 - 24, 'the answer first line is re-aligned')
+
+// After the release, a deliberate return to the bottom must be left alone.
+returned.port.remove(returned.port.querySelector('[data-chat-following-tail]'))
+flushTick()
+returned.port.append(new FakeElement({ 'data-chat-following-tail': '' }))
+returned.answer.rect.top = -1600
+returned.port.scrollTop = 2200
+flushTick()
+assert.equal(returned.port.events.length, 2, 'an explicit return to the bottom is not overridden')
+leave(returned)
+
+// A reader interaction during the return window cancels the reposition.
+const intentVisit = mountReturned('session-intent', 300)
+flushTick()
+leave(intentVisit)
+const intentBack = mountReturned('session-intent', 300)
+flushTick()
+readerIntent(intentBack.answer)
+intentBack.answer.rect.top = -1600
+intentBack.port.scrollTop = 2200
+flushTick()
+assert.equal(intentBack.port.events.length, 0, 'reader input cancels the pending reposition')
+assert.equal(intentBack.port.scrollTop, 2200, 'reader input keeps the reader position')
+leave(intentBack)
+
+// A Session left with a saved reading position keeps the Harness restoration.
+const reading = mountReturned('session-reading', -1600)
+reading.port.remove(reading.port.querySelector('[data-chat-following-tail]'))
+flushTick()
+leave(reading)
+const readingBack = mountReturned('session-reading', -1600)
+flushTick()
+assert.equal(readingBack.port.events.length, 0, 'a Session left while reading is not repositioned')
+assert.equal(readingBack.port.scrollTop, 2200, 'a restored reading position is kept')
+leave(readingBack)
+
+// The conversation scrollport is resident; switching Sessions replaces the
+// Chat flow inside it, so a fresh flow counts as a return too.
+const resident = mountReturned('session-resident', 300)
+flushTick()
+resident.port.remove(resident.flow)
+const replacedFlow = resident.port.append(new FakeElement({ 'data-chat-flow': '' }))
+addUserRow(replacedFlow, 1)
+addResponseRow(replacedFlow, 1, -1600, 3000)
+resident.port.scrollTop = 2200
+flushTick()
+assert.equal(resident.port.events.length, 1, 'a replaced Chat flow counts as a return')
+assert.equal(resident.port.scrollTop, 2200 - 1600 - 24, 'the replaced flow is aligned to its answer top')
+leave(resident)
 
 for (const cleanup of cleanups) cleanup()
 flushTimers()
